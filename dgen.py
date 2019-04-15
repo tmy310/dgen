@@ -1,78 +1,72 @@
-#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-アパッチログデータ登録用のスクリプトになります。
+データアクセス用のコード生成
 """
 
 import os
-import set_path_lib
-from anz.common.anz_init import *
-AnzInit.init(os.path.basename(__file__))
-
-
-#from include_lib import *
-from anz.contents.local.include import *
-import os
+import mysql.connector
 from argparse import *
+import subprocess
 
-class ApacheRestoretor:
-
-    def get_title(self):
-        args = self.parser.parse_args()
-        return args.contents_id
+class Dgen:
 
     def __init__(self):
-        #self.COMMON_BASE = 'anz.common.dao.'
-        self.COMMON_BASE = ''
         self.build_argument_parser()
-     
-        contents_id = self.get_title()
+        self.COMMON_BASE = 'dao.'
 
     def build_argument_parser(self):
-        self.parser = ArgumentParser(description='restore apachelog')
-        self.parser.add_argument('contents_id',help='contents_id ex:swcn')
-        self.parser.add_argument('--dbms',help='contents_id ex:swcn')
-    
-    def execute(self,exec_filename):
-        args = self.parser.parse_args()
-        schema = self.get_title()
-        table = ''
+        self.parser = ArgumentParser(description='generate source code of database')
+        self.parser.add_argument('--host',help='enter database hostname')
+        self.parser.add_argument('--db_name',help='enter database name')
+        self.parser.add_argument('--user',help='enter user name')
+        self.parser.add_argument('--passwd',help='enter password')
 
-        if args.dbms == None:
-           args.dbms='greenplum_db_base'
-        dbms_config_list = AnzProperty.get(['DB'])
-        db_list = dbms_config_list[args.dbms.upper()]
-        self.gdb = AnzDb(db_list['NAME'],db_list['HOST'],db_list['USER'],db_list['PASS'],args.dbms)
+    def do_cmd(self,cmd):
+        print cmd
+        args = cmd.split(' ')
+        p = subprocess.Popen(args,
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE,
+                       #  shell=True)
+                         shell=False)
+        returns = {'return':p.wait()
+                   ,'stdout':p.stdout.readlines()
+                   ,'stderr':p.stderr.readlines()
+                   }
+        return returns
 
+    def execute(self):
+        # ディレクトリ初期化
         output_base_dir = 'dao/'
         cmd = 'rm -fr ' + output_base_dir
-        Util.do_cmd(cmd)
-  
-        list = self.gdb.find_all_table_name()
+        self.do_cmd(cmd)
 
+        # 対象テーブルリスト取得
+        args = self.parser.parse_args()
+        conn = mysql.connector.connect(host = args.host, user = args.user, password = args.passwd)
+        cursor = conn.cursor()
+        cursor.execute("SELECT table_schema, table_name FROM information_schema.tables where table_schema = '" + args.db_name + "'")
+        rows = cursor.fetchall()
+
+        # ディレクトリ作成
         dir = output_base_dir + '/'
         cmd = 'mkdir -p ' + dir
-        Util.do_cmd(cmd)
+        self.do_cmd(cmd)
         self.make_init_src(dir)
 
-        for schema,tables in list.items():
-          #publioは除外
-          if schema == 'public' or schema == 'ppsn':
-            continue
-          dir = output_base_dir + schema + '/'
-          cmd = 'mkdir -p ' + dir
-          Util.do_cmd(cmd)
-          # todo:追記にする。
-          #self.make_include_include_src(output_base_dir,schema)
-          self.make_init_src(dir)
-          self.make_include_src(output_base_dir,schema,tables)
+        for row in rows:
+            schema = row[0]
+            table = row[1]
+            dir = output_base_dir + schema + '/'
+            cmd = 'mkdir -p ' + dir
+            self.do_cmd(cmd)
+            # todo:追記にする。
+            #self.make_include_include_src(output_base_dir,schema)
+            self.make_init_src(dir)
+            self.make_include_src(output_base_dir, schema, table)
 
-          for table in tables:
-
-            if table.find('return')==0 or table.find('yellowfin')>=0:
-              continue
             to_file = self.make_src(schema,table) 
-#            print to_file
 
             filename = dir + table + '.py'
             print filename
@@ -81,7 +75,36 @@ class ApacheRestoretor:
             fp.write(to_file)
             fp.close()
 
-#          sys.exit()
+    # テーブル定義取得処理
+    # 共通処理
+    def find_table_def_by_table(self,schema,table_name):
+        sql = """
+select 
+ * 
+from 
+ information_schema.columns 
+where 
+ table_name='%s' 
+ and 
+ table_schema='%s'
+order by 
+ ordinal_position;
+""" % (table_name,schema)
+        args = self.parser.parse_args()
+        conn = mysql.connector.connect(host = args.host, user = args.user, password = args.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return rows
+
+    # テーブル定義取得処理
+    # 共通処理
+    def find_cols_by_table(self,schema,table_name):
+        rows = self.find_table_def_by_table(schema,table_name)
+        cols = []
+        for row in rows:
+            cols.append(row[3])
+        return cols
 
     def find_update_col(self,cols):
         if 'log_date' in cols:
@@ -99,7 +122,7 @@ class ApacheRestoretor:
             to_file = to_file.replace('%REP_SCHEMA_NAME%',schema)
 
             # メソッド作成
-            cols = self.gdb.find_cols_by_table(schema,table)
+            cols = self.find_cols_by_table(schema,table)
             cols = self.pre_process(cols)
             print "cols"
             print cols
@@ -115,7 +138,6 @@ class ApacheRestoretor:
               col2 = self.convert_assinged_word(col)
               converted_assinged_word_cols.append(col2)
 #              print extra_sql
-            extra_sql += self.get_src_bulkload_template()
             extra_sql += self.get_src_find_by_where_template()
 
             rep_insert_col_param = ','.join(cols)
@@ -151,14 +173,8 @@ class ApacheRestoretor:
 
             to_file = to_file.replace('%REP_INSERT_IF%',src)
             to_file = to_file.replace('%REP_INSERT_IF2%',rep_insert_if2)
-#            to_file = to_file.replace('%REP_INSERT_COL%',rep_insert_col)
-
-            src_is_duplicate = self.get_src_is_duplicate()
-            src_is_duplicate = src_is_duplicate.replace('%REP_INSERT_IF%',rep_duplicate_if)
-            src_is_duplicate = src_is_duplicate.replace('%REP_INSERT_COL_DEF_PARAM%',rep_insert_col_def_param)
 
             to_file += extra_sql
-            to_file += src_is_duplicate
 
             class_name = self.make_class_name(table)
             print class_name
@@ -193,13 +209,10 @@ class ApacheRestoretor:
             fp.write(to_file)
             fp.close()
     # include.pyを作成します。
-    def make_include_src(self,dir,schema,tables):
+    def make_include_src(self,dir,schema,table):
             to_file = self.get_include_template()
             rep_str = ''
-            for table in tables:
-               if table.find('return')==0 or table.find('yellowfin')>=0:
-                continue
-               rep_str += 'from %s%s.%s import *' % (self.COMMON_BASE,schema,table) + "\n"
+            rep_str += 'from %s%s.%s import *' % (self.COMMON_BASE,schema,table) + "\n"
             to_file = to_file.replace('%REP_IMPORTS%',rep_str)
 
             fp = open(dir + 'include.py','a')
@@ -227,16 +240,16 @@ class ApacheRestoretor:
         str ="""
 # -*- coding: utf-8 -*-
 
-from anz.common.db.db_strategy import *
+import mysql.connector
 
-class %REP_CLASS_NAME%(DbStrategy):
+class %REP_CLASS_NAME%:
 
-    def  __init__(self,db_name,host,uid,pwd,dbms):
-        table_name='%REP_TABLE_NAME%'
+    def  __init__(self,host,uid,pwd):
         self.table_name='%REP_TABLE_NAME%'
-        schema='%REP_SCHEMA_NAME%'
         self.schema='%REP_SCHEMA_NAME%'
-        DbStrategy.__init__(self,db_name,schema,host,uid,pwd,table_name,dbms)
+        self.host=host
+        self.user=uid
+        self.passwd=pwd
 
     def truncate(self):
         sql = 'truncate table ' + self.schema + '.'+  self.table_name
@@ -259,7 +272,10 @@ class %REP_CLASS_NAME%(DbStrategy):
 
         sql += ')' 
         sql = sql % (%REP_INSERT_COL_DEF_PARAM%)
-        self.execute_query(sql)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        cursor.execute('commit')
 
     def insert_without_none(self,%REP_INSERT_COL_DEF_PARAM%):
         sql = 'insert into ' + self.schema + '.'+  self.table_name
@@ -272,8 +288,10 @@ class %REP_CLASS_NAME%(DbStrategy):
         sql += ' values('
         sql += ','.join(to_vals)
         sql += ')'
-        self.execute_query(sql)
-
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        cursor.execute('commit')
 """
         return str
 
@@ -281,26 +299,25 @@ class %REP_CLASS_NAME%(DbStrategy):
         str ="""
     def delete_by_%REP_DELETE_COL%(self,param):
         sql = 'delete from ' + self.schema +'.' + self.table_name + " where %REP_DELETE_COL% = '%s'; " % (param)
-        self.execute_query(sql)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        cursor.execute('commit')
 
     def find_by_%REP_DELETE_COL%(self,param):
         sql = 'select * from ' + self.schema +'.' + self.table_name + " where %REP_DELETE_COL% = '%s'; " % (param)
-        cursor = self.execute_query(sql)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
         rows = cursor.fetchall()
         return rows
 
     def update_by_%REP_DELETE_COL%(self,param):
         sql = 'update ' + self.schema +'.' + self.table_name + " set where %REP_DELETE_COL% = '%s'; " % (param)
-        cursor = self.execute_query(sql)
-        rows = cursor.fetchall()
-        return rows
-"""
-        return str
-
-    def get_src_bulkload_template(self):
-        str ="""
-    def bulkload(self,csvfile,ymlfile='',format='CSV',delimiter=None,quote='"',log_file=None,is_delete_yml=True,mode='insert'):
-        self.cmd_gpload(csvfile,ymlfile=ymlfile,format=format,delimiter=delimiter,quote=quote,log_file=log_file,is_delete_yml=is_delete_yml,mode=mode)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        cursor.execute('commit')
 """
         return str
 
@@ -308,7 +325,17 @@ class %REP_CLASS_NAME%(DbStrategy):
         str ="""
     def find_by_where(self,where,order):
         sql = 'select * from ' + self.schema +'.' + self.table_name + " where %s order by %s" % (where,order)
-        cursor = self.execute_query(sql)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        rows = cursor.fetchall()
+        return rows
+
+    def find_all(self,order):
+        sql = 'select * from ' + self.schema +'.' + self.table_name + " order by %s" % (order)
+        conn = mysql.connector.connect(host = self.host, user = self.user, password = self.passwd)
+        cursor = conn.cursor()
+        cursor.execute(sql)
         rows = cursor.fetchall()
         return rows
 """
@@ -346,7 +373,6 @@ class %REP_CLASS_NAME%(DbStrategy):
         return str
 
 if __name__ == '__main__':
-    exec_file_name=os.path.basename(__file__)
-    ar = ApacheRestoretor()
-    ar.execute(exec_file_name)
+    dgen = Dgen()
+    dgen.execute()
 
