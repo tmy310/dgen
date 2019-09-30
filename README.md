@@ -1,5 +1,5 @@
 # dgen
-generate python source code to access database(mysql).
+generate python source code to access database(mysql) like select, update, insert, delete of sql.
 I just need to access database source code simply. 
 I do not need the huge o/r mapper.
 
@@ -20,7 +20,7 @@ optional arguments:
 
 
 ## prerequisites
-- python2.7 or later
+- python3.x
 - virtualenv
 
 ## installation
@@ -37,7 +37,12 @@ virtualenv directory name must be `env` .
 
 ## sample
 ```
+# create sample env
 mysql -u root  < create_test_env.sql
+
+# just input hostname, database_name, user_name, password
 python dgen.py --host localhost --db_name test_database --user root --passwd ''
+
+# execute sample file. you can use select, update, insert, delete.
 python sample.py
 ```

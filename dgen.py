@@ -22,7 +22,7 @@ class Dgen:
         self.parser.add_argument('--passwd',help='enter password')
 
     def do_cmd(self,cmd):
-        print cmd
+        print(cmd)
         args = cmd.split(' ')
         p = subprocess.Popen(args,
                          stdin=subprocess.PIPE,
@@ -69,7 +69,7 @@ class Dgen:
             to_file = self.make_src(schema,table) 
 
             filename = dir + table + '.py'
-            print filename
+            print(filename)
 
             fp = open(filename,'w')
             fp.write(to_file)
@@ -124,8 +124,8 @@ order by
             # メソッド作成
             cols = self.find_cols_by_table(schema,table)
             cols = self.pre_process(cols)
-            print "cols"
-            print cols
+            print("cols")
+            print(cols)
             insert_vals = []
             converted_assinged_word_cols = []
             extra_sql = ''
@@ -137,7 +137,7 @@ order by
 
               col2 = self.convert_assinged_word(col)
               converted_assinged_word_cols.append(col2)
-#              print extra_sql
+#              print(extra_sql)
             extra_sql += self.get_src_find_by_where_template()
 
             rep_insert_col_param = ','.join(cols)
@@ -177,7 +177,7 @@ order by
             to_file += extra_sql
 
             class_name = self.make_class_name(table)
-            print class_name
+            print(class_name)
             to_file = to_file.replace('%REP_CLASS_NAME%',class_name)
 
             update_col =  self.find_update_col(cols)
@@ -342,8 +342,8 @@ class %REP_CLASS_NAME%:
         return str
     def make_class_name(self,str):
         strs = str.split('_')
-        print "make_class_name:"+str
-        print strs
+        print("make_class_name:"+str)
+        print(strs)
         ret = ''
         for part in strs:
           if part == '':
