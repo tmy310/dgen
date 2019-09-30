@@ -1,5 +1,7 @@
 # dgen
-generate source code of database like select, update, insert, delete
+generate python source code to access database(mysql) like select, update, insert, delete of sql.
+I just need to access database source code simply. 
+I do not need the huge o/r mapper.
 
 ## usage
 ```
