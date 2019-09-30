@@ -1,5 +1,5 @@
 # dgen
-generate source code of database
+generate source code of database like select, update, insert, delete
 
 ## usage
 ```
@@ -18,7 +18,7 @@ optional arguments:
 
 
 ## prerequisites
-- python2.7 or later
+- python3.x
 - virtualenv
 
 ## installation
@@ -35,7 +35,12 @@ virtualenv directory name must be `env` .
 
 ## sample
 ```
+# create sample env
 mysql -u root  < create_test_env.sql
+
+# just input hostname, database_name, user_name, password
 python dgen.py --host localhost --db_name test_database --user root --passwd ''
+
+# execute sample file. you can use select, update, insert, delete.
 python sample.py
 ```
