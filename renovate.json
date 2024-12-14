@@ -6,9 +6,5 @@
     "enabled": true,
     "fileMatch": ["requirements.txt", "pyproject.toml", "poetry.lock"]
   },
-  "schedule": [
-    {
-      "interval": "daily"
-    }
-  ]
+  "schedule": ["daily"]
 }
