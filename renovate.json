@@ -1,0 +1,14 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "pip": {
+    "enabled": true,
+    "fileMatch": ["requirements.txt", "pyproject.toml", "poetry.lock"]
+  },
+  "schedule": [
+    {
+      "interval": "daily"
+    }
+  ]
+}
