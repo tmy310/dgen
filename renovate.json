@@ -5,6 +5,7 @@
   "packageRules": [
     {
       "managers": ["pip_requirements"],
+      "groupName": "All Dependencies",
       "schedule": ["at any time"]
     }
   ]
