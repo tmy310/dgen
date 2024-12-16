@@ -1,0 +1,16 @@
+#dgenでbashをいれようとしたバージョン
+
+#!/bin/sh
+
+cd $(dirname $0)
+
+if [[ ! -d "env" ]]; then
+  echo "Couldn't find local python environment." >&2
+  echo "Build local environment with name \"env\"" >&2
+  echo "  virtualenv env"
+  exit 1
+fi
+
+source env/bin/activate
+./dgen.py "$@"
+
